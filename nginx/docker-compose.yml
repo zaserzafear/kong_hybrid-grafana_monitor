@@ -1,0 +1,18 @@
+version: "3"
+#
+networks:
+  default:
+    external:
+      name: nginx_proxy
+#
+services:
+  nginx-proxy:
+    image: nginx:alpine
+    restart: always
+    volumes:
+      - ./nginx/conf:/etc/nginx/conf.d:ro
+      - ./nginx/log:/var/log/nginx:rw
+    environment:
+      - TZ= ${TIME_ZONE}
+    ports:
+      - ${NGINX_HTTP_PORT}:80

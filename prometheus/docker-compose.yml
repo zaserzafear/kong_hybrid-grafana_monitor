@@ -1,0 +1,32 @@
+version: "3"
+#
+networks:
+  grafana_monitor:
+    external:
+      name: grafana_monitor
+  default:
+    external:
+      name: prometheus_network
+#
+volumes:
+  prometheus_data:
+#
+services:
+  #######################################
+  # Prometheus
+  #######################################
+  prometheus_local:
+    image: prom/prometheus:latest
+    restart: always
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    environment:
+      - TZ= ${TIME_ZONE}
+    volumes:
+      - ./data/prometheus_local.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/promtheus
+    networks:
+      - grafana_monitor
+      - default
+    # ports:
+    #   - 9090:9090

@@ -1,0 +1,46 @@
+version: "3"
+#
+networks:
+  default:
+    external:
+      name: prometheus_network
+#
+services:
+  #
+  #######################################
+  # Node Exporter
+  #######################################
+  node_exporter:
+    image: prom/node-exporter:latest
+    restart: always
+    environment:
+      - TZ= ${TIME_ZONE}
+    expose:
+      - 9100
+  #
+  postgres-kong:
+    image: quay.io/prometheuscommunity/postgres-exporter
+    restart: always
+    environment:
+      - TZ= ${TIME_ZONE}
+      - DATA_SOURCE_NAME= postgresql://${POSTGRES_DATABASE_USERNAME}:${POSTGRES_DATAGASE_PASSWORD}@kong-database/${KONG_DATABASE_NAME}
+    expose:
+      - 9187
+  #
+  postgres-konga:
+    image: quay.io/prometheuscommunity/postgres-exporter
+    restart: always
+    environment:
+      - TZ= ${TIME_ZONE}
+      - DATA_SOURCE_NAME= postgresql://${POSTGRES_DATABASE_USERNAME}:${POSTGRES_DATAGASE_PASSWORD}@kong-database/${KONGA_DATABASE_NAME}
+    expose:
+      - 9187
+  #
+  postgres-grafana:
+    image: quay.io/prometheuscommunity/postgres-exporter
+    restart: always
+    environment:
+      - TZ= ${TIME_ZONE}
+      - DATA_SOURCE_NAME= postgresql://grafana:grafana@grafana-database/grafana
+    expose:
+      - 9187

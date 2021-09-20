@@ -1,0 +1,50 @@
+version: "3"
+#
+volumes:
+  kong_database:
+  konga_database:
+#
+networks:
+  nginx_proxy:
+    external:
+      name: nginx_proxy
+  kong_proxy:
+    external:
+      name: kong_proxy
+  default:
+    external:
+      name: kong_network
+#
+services:
+  #
+  #######################################
+  # Kong: The API Gateway
+  #######################################
+  kong_dp:
+    image: kong:latest
+    restart: always
+    volumes:
+      - ${KONG_CERT_PATH}:/certs:ro
+    environment:
+      - TZ=${TIME_ZONE}
+      - KONG_PROXY_ACCESS_LOG=/dev/stdout
+      - KONG_PROXY_ERROR_LOG=/dev/stderr
+
+      - KONG_PROXY_LISTEN=0.0.0.0:8000, 0.0.0.0:8443 ssl
+      - KONG_STATUS_LISTEN=0.0.0.0:9123
+
+      - KONG_ROLE=data_plane
+      - KONG_CLUSTER_CONTROL_PLANE=kong_cp:8005
+      - KONG_CLUSTER_CERT=/certs/cluster.crt
+      - KONG_CLUSTER_CERT_KEY=/certs/cluster.key
+      - KONG_LUA_SSL_TRUSTED_CERTIFICATE=/certs/cluster.crt
+
+      - KONG_DATABASE=off
+    ports:
+      - ${KONG_DP_PROXY_LISTEN}:8000
+      - ${KONG_DP_PROXY_LISTEN_SSL}:8443
+      - ${KONG_DP_STATUS_LISTEN}:9123
+    networks:
+      - nginx_proxy
+      - kong_proxy
+      - default

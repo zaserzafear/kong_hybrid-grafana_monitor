@@ -1,0 +1,59 @@
+version: "3"
+#
+volumes:
+  grafana_data:
+  grafana_database:
+#
+networks:
+  nginx_proxy:
+    external:
+      name: nginx_proxy
+  prometheus_network:
+    external:
+      name: prometheus_network
+  grafana_monitor:
+    external:
+      name: grafana_monitor
+  default:
+    driver: bridge
+#
+services:
+  #
+  grafana-database:
+    image: postgres:13.4
+    restart: always
+    volumes:
+      - grafana_database:/var/lib/postgresql/data
+    environment:
+      - TZ=${TIME_ZONE}
+      - POSTGRES_DB=grafana
+      - POSTGRES_USER=grafana
+      - POSTGRES_PASSWORD=grafana
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    networks:
+      - prometheus_network
+      - default
+    expose:
+      - 5432
+  #
+  grafana:
+    image: grafana/grafana:latest
+    depends_on:
+      - grafana-database
+    restart: always
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./data/grafana/config:/etc/grafana
+      - ./data/grafana/logs:/var/log/grafana
+    environment:
+      - TZ=${TIME_ZONE}
+      - GF_PATHS_LOGS=/var/log/grafana/
+      - GF_LOG_MODE=console file
+      - GF_INSTALL_PLUGINS=grafana-clock-panel, grafana-simple-json-datasource , redis-datasource
+    networks:
+      - nginx_proxy
+      - prometheus_network
+      - grafana_monitor
+      - default
+    ports:
+      - ${GRAFANA_HTTP_PORT}:3000

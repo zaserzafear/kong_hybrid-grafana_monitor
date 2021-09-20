@@ -1,0 +1,135 @@
+version: "3"
+#
+volumes:
+  kong_database:
+#
+networks:
+  nginx_proxy:
+    external:
+      name: nginx_proxy
+  prometheus_network:
+    external:
+      name: prometheus_network
+  default:
+    external:
+      name: kong_network
+#
+services:
+  #
+  #######################################
+  # PostgreSql: The database used by Kong & Konga
+  #######################################
+  kong-database:
+    image: postgres_kong
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    restart: always
+    volumes:
+      - kong_database:/var/lib/postgresql/data
+    environment:
+      - TZ=${TIME_ZONE}
+      - POSTGRES_MULTIPLE_DATABASES="${KONG_DATABASE_NAME}","${KONGA_DATABASE_NAME}"
+      - POSTGRES_USER=${POSTGRES_DATABASE_USERNAME}
+      - POSTGRES_PASSWORD=${POSTGRES_DATAGASE_PASSWORD}
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    expose:
+      - 5432
+    networks:
+      - prometheus_network
+      - default
+  #######################################
+  # Kong: The API Gateway
+  #######################################
+  kong_cp:
+    image: kong:latest
+    depends_on:
+      - kong-migration
+    restart: always
+    volumes:
+      - ${KONG_CERT_PATH}:/certs:ro
+    environment:
+      - TZ=${TIME_ZONE}
+      - KONG_ADMIN_ACCESS_LOG=/dev/stdout
+      - KONG_ADMIN_ERROR_LOG=/dev/stderr
+
+      - KONG_ADMIN_LISTEN=0.0.0.0:8001, 0.0.0.0:8444 ssl
+      - KONG_STATUS_LISTEN=0.0.0.0:9123
+
+      - KONG_ROLE=control_plane
+      - KONG_CLUSTER_CERT=/certs/cluster.crt
+      - KONG_CLUSTER_CERT_KEY=/certs/cluster.key
+
+      - KONG_DATABASE=postgres
+      - KONG_PG_HOST=kong-database
+      - KONG_PG_DATABASE=${KONG_DATABASE_NAME}
+      - KONG_PG_USER=${POSTGRES_DATABASE_USERNAME}
+      - KONG_PG_PASSWORD=${POSTGRES_DATAGASE_PASSWORD}
+    ports:
+      - ${KONG_CP_ADMIN_LISTEN}:8001
+      - ${KONG_CP_ADMIN_LISTEN_SSL}:8444
+      - ${KONG_CP_STATUS_LISTEN}:9123
+      - ${KONG_CP_PORT}:8005
+    networks:
+      - prometheus_network
+      - default
+  #
+  #######################################
+  # Konga: Kong GUI
+  #######################################
+  konga:
+    image: pantsel/konga:latest
+    depends_on:
+      - konga-prepare
+    restart: always
+    environment:
+      - TZ=${TIME_ZONE}
+      - NODE_ENV=production
+      - DB_ADAPTER=postgres
+      - DB_URI=postgresql://${POSTGRES_DATABASE_USERNAME}:${POSTGRES_DATAGASE_PASSWORD}@kong-database/${KONGA_DATABASE_NAME}
+    ports:
+      - ${KONGA_HTTP_PORT}:1337
+    networks:
+      - nginx_proxy
+      - default
+  #
+  #######################################
+  # Kong gen cert
+  #######################################
+  kong-gen-cert:
+    image: kong:latest
+    command: kong hybrid gen_cert --v
+    working_dir: /certs
+    volumes:
+      - ${KONG_CERT_PATH}:/certs
+    environment:
+      - TZ=${TIME_ZONE}
+  #
+  #######################################
+  # Kong: database migration
+  #######################################
+  kong-migration:
+    image: kong:latest
+    depends_on:
+      - kong-database
+    command: kong migrations bootstrap
+    restart: on-failure
+    environment:
+      - TZ=${TIME_ZONE}
+      - KONG_DATABASE=postgres
+      - KONG_PG_HOST=kong-database
+      - KONG_PG_DATABASE=${KONG_DATABASE_NAME}
+      - KONG_PG_USER=${POSTGRES_DATABASE_USERNAME}
+      - KONG_PG_PASSWORD=${POSTGRES_DATAGASE_PASSWORD}
+  #
+  #######################################
+  # Konga database prepare
+  #######################################
+  konga-prepare:
+    image: pantsel/konga:latest
+    depends_on:
+      - kong-database
+    restart: on-failure
+    command: "-c prepare -a postgres -u postgresql://${POSTGRES_DATABASE_USERNAME}:${POSTGRES_DATABASE_USERNAME}@kong-database/${KONGA_DATABASE_NAME}"
+    environment:
+      - TZ=${TIME_ZONE}
